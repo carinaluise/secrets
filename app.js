@@ -6,7 +6,9 @@ const ejs = require("ejs");
 const mongoose = require("mongoose");
 const app = express();
 const encrypt = require("mongoose-encryption");
-const md5 = require("md5");
+// const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10
 
 app.use(express.static("public"));
 app.set("view engine", "ejs");
@@ -22,7 +24,6 @@ const userDbSchema = new mongoose.Schema ({
   email: String,
   password: String
 })
-
 
 // userDbSchema.plugin(encrypt, {secret : Process.env.SECRET , encryptedFields: ["passwords"]})
 
@@ -40,19 +41,20 @@ app.route("/register")
 
   .post(function(req, res) {
 
-    const user = new User({
-      email: req.body.username,
-      password: md5(req.body.password)
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash){
+      const user = new User({
+        email: req.body.username,
+        password: hash
+      })
+
+      user.save(function(err) {
+        if (err) {
+          console.log(err)
+        } else {
+          res.render("secrets")
+        }
+      });
     })
-
-    user.save(function(err) {
-      if (err) {-
-        console.log(err)
-      } else {
-        res.render("secrets")
-      }
-    });
-
   })
 
 app.route("/login")
@@ -64,31 +66,24 @@ app.route("/login")
   .post(function(req, res) {
 
     const username = req.body.username
-    const password = md5(req.body.password)
+    const password = req.body.password
+
 
     User.findOne({
       email: username
     }, function(err, foundUser) {
       if (!foundUser) {
         console.log(res.send("wrong email or password"));
-      } else {
-          if (foundUser) {
-              if (foundUser.password === password){
-                res.render("secrets")
-                console.log(md5(req.body.password))
-              }
-              else {res.send("wrong email or password")}
-            }
-          }
-        });
-      });
+      } else { if (foundUser){
+        bcrypt.compare(password, foundUser.password, function(err, result){
 
-
-
-
-
-
-
-
+              if (result === true){
+              res.send("secrets");}
+            })
+           }
+      else{ res.send("wrong email or password")}
+    }
+  });
+});
 
 app.listen(3000);
